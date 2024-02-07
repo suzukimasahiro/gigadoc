@@ -7,7 +7,9 @@
 #                                                                               #
 #################################################################################
 
-# 2023/01/05 Ver.0.1
+# 2024/02/02 Default directory support
+# 2023/05/26 mouse cursor change for link
+# 2023/01/05 initial ver.
 
 import tkinter as tk
 from tkinter import filedialog
@@ -20,7 +22,8 @@ import glob
 import docker
 import datetime
 import psutil
-from gigadoc_settings import docker_tag, user_home, jump_to_link
+from gigadoc_tags import docker_tag
+from gigadoc_functions import user_home, jump_to_link
 
 
 class createMLSTWindow(tk.Frame):
@@ -46,9 +49,9 @@ class createMLSTWindow(tk.Frame):
 		buttonSelectFasta.place(x=20, y=20)
 		buttonSelectDir.place(x=20, y=90)
 
-		buttonDummyOutDir = tk.Button(self.master, text='Select Output\ndirectory', 
-			command=self.select_outdir, width=14, height=3, state='disable')
-		buttonDummyOutDir.place(x=210, y=50)
+		buttonOutDir = tk.Button(self.master, text='Select Output\ndirectory', 
+			command=self.select_outdir, width=14, height=3, state='normal')
+		buttonOutDir.place(x=210, y=50)
 
 		buttonDummyReview = tk.Button(self.master, text='Review input\nfiles', 
 			command=self.review_files, width=14, height=3, state='disable')
@@ -58,15 +61,24 @@ class createMLSTWindow(tk.Frame):
 			command=self.close_Window, width=14, height=3)
 		buttonCancel.place(x=600, y=160)
 
-		label_mlst = tk.Label(self.master, text= 'Link to AMRFinderPlus: https://github.com/tseemann/mlst', 
+		def change_cursor(widget, cursor):
+			widget.config(cursor=cursor)
+
+		label_mlst = tk.Label(self.master, text= 'Link to mlst: https://github.com/tseemann/mlst', 
 			font=font.Font(size=12), fg='#0000ff')
 		label_mlst.place(x=20, y=250)
 		label_mlst.bind('<Button-1>', lambda e:jump_to_link('https://github.com/tseemann/mlst'))
+
+		widgets = [label_mlst]
+		for widget in widgets:
+			widget.bind("<Enter>", lambda event, w=widget: change_cursor(w, "hand2"))
+			widget.bind("<Leave>", lambda event, w=widget: change_cursor(w, ""))
 		
 	fasta_dic = {}
 	input_dic = {} # input_dic[strain] = {file_type, strain, dir, seq1, seq2}
 	input_list = []
 	dir_path = {'datadir':'', 'outdir':'', 'ref_file':''}
+	dir_path['outdir'] = user_home('mlstoutdir')
 	dir_list = []
 
 	def close_Window(self):
@@ -74,7 +86,7 @@ class createMLSTWindow(tk.Frame):
 
 	def select_fasta(self):
 		fTyp = [('fasta', '*.fasta'), ('fasta', '*.fa'), ('fasta', '*.fna')]
-		fasta_files = tk.filedialog.askopenfilenames(parent = self.master,filetypes=fTyp, initialdir=user_home())
+		fasta_files = tk.filedialog.askopenfilenames(parent = self.master,filetypes=fTyp, initialdir=user_home('datadir'))
 		print(fasta_files)
 		if len(fasta_files) > 0:
 			for fasta in fasta_files:
@@ -84,16 +96,18 @@ class createMLSTWindow(tk.Frame):
 				self.fasta_dic[strain] = [dir_name, filename, '']
 			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
 			label_arrow.place(x=170, y=60)
-			buttonOutDir = tk.Button(self.master, text='Select Output\ndirectory', command=self.select_outdir, 
+			buttonReview = tk.Button(self.master, text='Review input\nfiles', command=self.review_files, 
 				width=14, height=3, state='normal')
-			buttonOutDir.place(x=210, y=50)
+			buttonReview.place(x=400, y=50)
+			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
+			label_arrow.place(x=360, y=60)
 			print(self.fasta_dic)
 		else:
 			print('No fasta is selected')
 			return
 
 	def select_spades(self):
-		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home())
+		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home('assemblydir'))
 		print(file_path)
 		fasta_files = []
 		try:
@@ -111,16 +125,18 @@ class createMLSTWindow(tk.Frame):
 				self.fasta_dic[strain] = [dir_name, filename, '']
 			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
 			label_arrow.place(x=170, y=60)
-			buttonOutDir = tk.Button(self.master, text='Select Output\ndirectory', command=self.select_outdir, 
+			buttonReview = tk.Button(self.master, text='Review input\nfiles', command=self.review_files, 
 				width=14, height=3, state='normal')
-			buttonOutDir.place(x=210, y=50)
+			buttonReview.place(x=400, y=50)
+			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
+			label_arrow.place(x=360, y=60)
 			print(self.fasta_dic)
 		else:
 			print('No fasta is selected')
 			return
 
 	def select_outdir(self):
-		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home())
+		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home('mlstoutdir'))
 		if file_path == '':
 			print('No directory is selected')
 			return
@@ -129,11 +145,6 @@ class createMLSTWindow(tk.Frame):
 			self.dir_path['outdir'] = file_path
 		label_outdir = tk.Label(self.master, text='Output dir: ' + file_path, font=font.Font(size=12))
 		label_outdir.place(x=20, y=200)
-		label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
-		label_arrow.place(x=360, y=60)
-		buttonReview = tk.Button(self.master, text='Review input\nfiles', command=self.review_files, 
-			width=14, height=3, state='normal')
-		buttonReview.place(x=400, y=50)
 
 
 	def review_files(self):

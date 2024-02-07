@@ -7,7 +7,10 @@
 #                                                                               #
 #################################################################################
 
-# 2023/01/05 Ver.0.1
+# 2024/02/02 Default directory support
+# 2023/06/09 Fix results order to that of input
+# 2023/05/26 mouse cursor change for link
+# 2023/01/05 Initial ver.
 
 import tkinter as tk
 from tkinter import filedialog
@@ -21,7 +24,8 @@ import docker
 import datetime
 import copy
 import psutil
-from gigadoc_settings import docker_tag, user_home, jump_to_link
+from gigadoc_tags import docker_tag
+from gigadoc_functions import user_home, jump_to_link
 from run_amrfinder import amr_summary, amr_resultsfile, amr2excel, amr2txt
 
 
@@ -48,9 +52,9 @@ class createAMRfinderWindow(tk.Frame):
 		buttonSelectFasta.place(x=20, y=20)
 		buttonSelectDir.place(x=20, y=90)
 
-		buttonDummyOutDir = tk.Button(self.master, text='Select Output\ndirectory', 
-			command=self.select_outdir, width=14, height=3, state='disable')
-		buttonDummyOutDir.place(x=210, y=50)
+		buttonOutDir = tk.Button(self.master, text='Select Output\ndirectory', command=self.select_outdir, 
+			width=14, height=3, state='normal')
+		buttonOutDir.place(x=210, y=50)
 
 		buttonDummyReview = tk.Button(self.master, text='Review input\nfiles', 
 			command=self.review_files, width=14, height=3, state='disable')
@@ -64,15 +68,24 @@ class createAMRfinderWindow(tk.Frame):
 			command=self.close_Window, width=14, height=3)
 		buttonCancel.place(x=600, y=160)
 		
+		def change_cursor(widget, cursor):
+			widget.config(cursor=cursor)
+
 		label_amrfinder = tk.Label(self.master, text= 'Link to AMRFinderPlus: https://github.com/ncbi/amr/wiki', 
 			font=font.Font(size=12), fg='#0000ff')
 		label_amrfinder.place(x=20, y=250)
 		label_amrfinder.bind('<Button-1>', lambda e:jump_to_link('https://github.com/ncbi/amr/wiki'))
 
+		widgets = [label_amrfinder]
+		for widget in widgets:
+			widget.bind("<Enter>", lambda event, w=widget: change_cursor(w, "hand2"))
+			widget.bind("<Leave>", lambda event, w=widget: change_cursor(w, ""))
+
 	fasta_dic = {}
 	input_dic = {} # input_dic[strain] = {file_type, strain, dir, seq1, seq2}
 	input_list = []
 	dir_path = {'datadir':'', 'outdir':'', 'ref_file':''}
+	dir_path['outdir'] = user_home('amrfinderdir')
 	dir_list = []
 
 	def close_Window(self):
@@ -80,7 +93,7 @@ class createAMRfinderWindow(tk.Frame):
 
 	def select_fasta(self):
 		fTyp = [('fasta', '*.fasta'), ('fasta', '*.fa'), ('fasta', '*.fna')]
-		fasta_files = tk.filedialog.askopenfilenames(parent = self.master,filetypes=fTyp, initialdir=user_home())
+		fasta_files = tk.filedialog.askopenfilenames(parent = self.master,filetypes=fTyp, initialdir=user_home('datadir'))
 		print(fasta_files)
 		if len(fasta_files) > 0:
 			for fasta in fasta_files:
@@ -90,16 +103,18 @@ class createAMRfinderWindow(tk.Frame):
 				self.fasta_dic[strain] = [dir_name, filename, '']
 			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
 			label_arrow.place(x=170, y=60)
-			buttonOutDir = tk.Button(self.master, text='Select Output\ndirectory', command=self.select_outdir, 
+			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
+			label_arrow.place(x=360, y=60)
+			buttonReview = tk.Button(self.master, text='Review input\nfiles', command=self.review_files, 
 				width=14, height=3, state='normal')
-			buttonOutDir.place(x=210, y=50)
+			buttonReview.place(x=400, y=50)
 			print(self.fasta_dic)
 		else:
 			print('No fasta is selected')
 			return
 
 	def select_spades(self):
-		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home())
+		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home('assemblydir'))
 		print(file_path)
 		fasta_files = []
 		try:
@@ -117,16 +132,18 @@ class createAMRfinderWindow(tk.Frame):
 				self.fasta_dic[strain] = [dir_name, filename, '']
 			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
 			label_arrow.place(x=170, y=60)
-			buttonOutDir = tk.Button(self.master, text='Select Output\ndirectory', command=self.select_outdir, 
+			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
+			label_arrow.place(x=360, y=60)
+			buttonReview = tk.Button(self.master, text='Review input\nfiles', command=self.review_files, 
 				width=14, height=3, state='normal')
-			buttonOutDir.place(x=210, y=50)
+			buttonReview.place(x=400, y=50)
 			print(self.fasta_dic)
 		else:
 			print('No fasta is selected')
 			return
 
 	def select_outdir(self):
-		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home())
+		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home('amrfinderdir'))
 		if file_path == '':
 			print('No directory is selected')
 			return
@@ -143,22 +160,14 @@ class createAMRfinderWindow(tk.Frame):
 
 	def updatedb(self):
 		print('update AMRfinder database')
-		idir = user_home()
+		idir = user_home('amrfinderdbdir')
 		tag = docker_tag('AMRfinder')
-		if os.path.isdir(idir + '/gigadoc'):
+		if os.path.isdir(idir + '/' + tag):
 			pass
 		else:
-			os.mkdir(idir + '/gigadoc')
-		if os.path.isdir(idir + '/gigadoc/amrfinder'):
-			pass
-		else:
-			os.mkdir(idir + '/gigadoc/amrfinder')
-		if os.path.isdir(idir + '/gigadoc/amrfinder/' + tag):
-			pass
-		else:
-			os.mkdir(idir + '/gigadoc/amrfinder/' + tag)
+			os.mkdir(idir + '/' + tag)
 		amrfinder_container = 'quay.io/biocontainers/ncbi-amrfinderplus:' + tag
-		dbdir = idir + '/gigadoc/amrfinder/' + tag
+		dbdir = idir + '/' + tag
 		client = docker.from_env()
 		client.containers.run(amrfinder_container, 'amrfinder -u', remove=True, volumes=[dbdir + ':/usr/local/share'])
 
@@ -194,9 +203,10 @@ class createAMRfinderWindow(tk.Frame):
 			strains = ''
 			results_dic = {}
 			results_text_dic = {}
+			strain_list = [] # 2023/6/9
 
 			tag = docker_tag('AMRfinder')
-			dbdir = user_home() + '/gigadoc/amrfinder/' + tag
+			dbdir = user_home('amrfinderdbdir') + '/' + tag
 			amrfinder_container = 'quay.io/biocontainers/ncbi-amrfinderplus:' + tag
 			client = docker.from_env()
 			
@@ -206,6 +216,7 @@ class createAMRfinderWindow(tk.Frame):
 				self.updatedb()
 			
 			for key in self.input_dic:
+				strain_list.append(key)
 				amrfinder_cmd = 'amrfinder -n ' + self.input_dic[key][3] + ' -i 0.7 --threads 4'
 				print(amrfinder_cmd)
 				print(self.input_dic[key])
@@ -222,8 +233,8 @@ class createAMRfinderWindow(tk.Frame):
 				results_text_dic[key] = amr_results.decode('utf8')
 				results_list.clear()
 			print(results_dic)
-			amr2excel(results_dic, out_name)
-			amr2txt('', results_text_dic, out_name)
+			amr2txt('', results_text_dic, strain_list, out_name) # 2023/6/9 add "strain_list"
+			amr2excel(results_dic, out_name, strain_list) # 2023/6/9 add "strain_list"
 			
 			ReviewWindow.destroy()
 			

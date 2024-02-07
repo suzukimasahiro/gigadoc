@@ -7,8 +7,11 @@
 #                                                                               #
 #################################################################################
 
+# 2024/02/02 Calculating coverage and Default directory support
+# 2023/12/18 Default dir setting support and Coverage output
+# 2023/05/26 mouse cursor change for link
 # 2023/01/05 Trimming bad contigs and save contigs.fasta with strain name
-# 2022/11/30 Ver.0.1
+# 2022/11/30 test ver.
 
 import tkinter as tk
 from tkinter import filedialog
@@ -22,8 +25,10 @@ import docker
 import datetime
 import time
 import psutil
+import json
 from Bio import SeqIO
-from gigadoc_settings import docker_tag, user_home, illumina_raw, jump_to_link
+from gigadoc_tags import docker_tag
+from gigadoc_functions import user_home, illumina_fastq, jump_to_link
 
 class createSpadesWindow(tk.Frame):
 	def __init__(self, master  = None):
@@ -43,8 +48,9 @@ class createSpadesWindow(tk.Frame):
 			command=self.select_fastq, width=14, height=3, state='disable')
 		buttonSelectFastq.place(x=20, y=20)
 
-		buttonDummyOutDir = tk.Button(self.master, text='Select Output\ndirectory', width=14, height=3, state='disable')
-		buttonDummyOutDir.place(x=210, y=20)
+		buttonOutDir = tk.Button(self.master, text='Select Output\ndirectory', 
+								command=self.select_outdir, width=14, height=3, state='normal')
+		buttonOutDir.place(x=210, y=20)
 
 		buttonDummyReview = tk.Button(self.master, text='Review Files', width=14, height=3, state='disable')
 		buttonDummyReview.place(x=400, y=20)
@@ -55,17 +61,26 @@ class createSpadesWindow(tk.Frame):
 		buttonCancel = tk.Button(self.master, text = "Close", command=self.close_Window, width=14, height=3)
 		buttonCancel.place(x=600, y=430)
 
+		def change_cursor(widget, cursor):
+			widget.config(cursor=cursor)
+
 		label_fastp = tk.Label(self.master, text= 'Link to fastp: https://github.com/OpenGene/fastp', 
 			font=font.Font(size=12), fg='#0000ff')
 		label_fastp.place(x=20, y=455)
 		label_fastp.bind('<Button-1>', lambda e:jump_to_link('https://github.com/OpenGene/fastp'))
-		label_spades = tk.Label(self.master, text= 'Link to SPAdes: http://cab.spbu.ru/software/spades', 
+		label_spades = tk.Label(self.master, text= 'Link to SPAdes: https://github.com/ablab/spades', 
 			font=font.Font(size=12), fg='#0000ff')
 		label_spades.place(x=20, y=480)
-		label_spades.bind('<Button-1>', lambda e:jump_to_link('http://cab.spbu.ru/software/spades'))
+		label_spades.bind('<Button-1>', lambda e:jump_to_link('https://github.com/ablab/spades'))
+
+		widgets = [label_fastp, label_spades]
+		for widget in widgets:
+			widget.bind("<Enter>", lambda event, w=widget: change_cursor(w, "hand2"))
+			widget.bind("<Leave>", lambda event, w=widget: change_cursor(w, ""))
 
 	fastq_list = []
 	dir_path = {'fastq':'', 'outdir':''}
+	dir_path['outdir'] = user_home('assemblydir')
 	
 	def close_Window(self):
 		self.fastq_list.clear()
@@ -73,7 +88,7 @@ class createSpadesWindow(tk.Frame):
 		self.master.destroy()
 		
 	def select_fastq(self):
-		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home())
+		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home('datadir'))
 		print(file_path)
 		if file_path == '':
 			print('No directory is selected')
@@ -81,7 +96,7 @@ class createSpadesWindow(tk.Frame):
 		else:	
 			files = glob.glob(file_path + "/*R1*.fastq.gz")
 			for fastq in files:
-				seq_list = illumina_raw(fastq)
+				seq_list = illumina_fastq(fastq)
 				if seq_list[0] == 'Undetermined':
 					pass
 				else:
@@ -95,13 +110,15 @@ class createSpadesWindow(tk.Frame):
 		label_fastqdir.place(x=20, y=360)
 		label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
 		label_arrow.place(x=175, y=30)
+		buttonReviewFiles = tk.Button(self.master, text='Review Files', command=self.review_files, width=14, height=3, state='normal')
+		buttonReviewFiles.place(x=400, y=20)
+		label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
+		label_arrow.place(x=360, y=30)
 		buttonDummyFastq = tk.Button(self.master, text='Select FASTQ\ndirectory', command=self.select_fastq, width=14, height=3, state='disable')
 		buttonDummyFastq.place(x=20, y=20)
-		buttonOutDir = tk.Button(self.master, text='Select Output\ndirectory', command=self.select_outdir, width=14, height=3, state='normal')
-		buttonOutDir.place(x=210, y=20)
 		
 	def select_outdir(self):
-		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home())
+		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home('assemblydir'))
 		if file_path == '':
 			print('No directory is selected')
 			return
@@ -110,12 +127,6 @@ class createSpadesWindow(tk.Frame):
 			self.dir_path['outdir'] = file_path
 		label_fastqdir = tk.Label(self.master, text='Output dir: ' + file_path, font=font.Font(size=12))
 		label_fastqdir.place(x=20, y=385)
-		label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
-		label_arrow.place(x=360, y=30)
-		buttonDummyOutDir = tk.Button(self.master, text='Select Output\ndirectory', width=14, height=3, state='disable')
-		buttonDummyOutDir.place(x=210, y=20)
-		buttonReviewFiles = tk.Button(self.master, text='Review Files', command=self.review_files, width=14, height=3, state='normal')
-		buttonReviewFiles.place(x=400, y=20)
 		
 	def review_files(self):
 		def delete_record(event):
@@ -171,7 +182,12 @@ class createSpadesWindow(tk.Frame):
 					label_run = tk.Label(self.master, text= strain + ': fastq trimming by fastp', font=font.Font(size=12))
 					label_run.place(x=20, y=410)
 					volume_list = [fastp_dir + ':/home', data_dir + ':/mnt']
-					client.containers.run(fastp_container, fastp_cmd, remove=True, volumes=volume_list, working_dir='/home')
+					client.containers.run(fastp_container, fastp_cmd, remove=True, 
+											volumes=volume_list, working_dir='/home')
+				with open(fastp_dir + '/' + strain + '.json', 'r')as f:
+					fastp_dic = json.load(f)
+					total_bases = float(fastp_dic["summary"]["after_filtering"]["total_bases"])
+
 				### SPAdes ###
 				if os.path.exists(out_dir + '/' + strain + '/SPAdes'):
 					print('SPAdes: pass')
@@ -184,10 +200,12 @@ class createSpadesWindow(tk.Frame):
 					--pe1-2 ' + strain + '_R2_fastp.fastq.gz'
 					client.containers.run(spades_container, spades_cmd, remove=True, volumes=volume_list, working_dir='/mnt')
 				
-					### Discard waste contigs ###
+					### Discard waste contigs and check genone length ###
 					contig_file = out_dir + '/' + strain + '/SPAdes/' + 'contigs.fasta'
 					output_file = out_dir + '/' + strain + '/SPAdes/' + strain + '_contigs.fasta'
-					outf = open(output_file, 'w', newline='\n')
+					coverage_file = out_dir + '/' + strain + '/SPAdes/' + strain + '_coverage.txt'
+					outf = open(output_file, 'w', newline='\n')   ##### Permission problem is remaining on Linux #####
+					genome_length = 0
 					for each_seq in SeqIO.parse(contig_file, 'fasta'):
 						seq_id = each_seq.id.split('_')
 						#print(seq_id)
@@ -205,12 +223,18 @@ class createSpadesWindow(tk.Frame):
 								else:
 									SeqIO.write(each_seq, outf, 'fasta')
 									print('write')
+									genome_length = genome_length + length
 							else:
 								SeqIO.write(each_seq, outf, 'fasta')
 								print('write')
+								genome_length = genome_length + length
 						else:
 							print('DISCARD')
 					outf.close()
+					with open(coverage_file, 'w') as f:
+						f.write('Genome size\t' + str(genome_length) + '\n')
+						f.write('Total Reads\t' + str(total_bases) + '\n')
+						f.write('Coverage\t' + str(round(total_bases / genome_length)) + '\n')
 
 
 			print(datetime.datetime.now())

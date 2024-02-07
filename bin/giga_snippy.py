@@ -7,9 +7,11 @@
 #                                                                               #
 #################################################################################
 
-# 2023/01/05	SPAdes results directory support
-# 2022/12/02	Replace docker contaner from staphb to bioconda
-# 2022/11/30	Ver.0.1
+# 2024/02/02 Ver.0.1.2 Default directory support
+# 2023/05/26 Ver.0.1.1 mouse cursor change for link
+# 2023/01/05 SPAdes results directory support
+# 2022/12/02 Replace docker contaner from staphb to bioconda
+# 2022/11/30 Ver.0.1
 
 import tkinter as tk
 from tkinter import filedialog
@@ -25,7 +27,8 @@ import time
 import shutil
 import psutil
 from Bio import Phylo
-from gigadoc_settings import docker_tag, user_home, illumina_raw, illumina_fastp, jump_to_link
+from gigadoc_tags import docker_tag
+from gigadoc_functions import user_home, illumina_fastq, jump_to_link
 
 
 class createSnippyWindow(tk.Frame):
@@ -58,9 +61,9 @@ class createSnippyWindow(tk.Frame):
 			command=self.select_spades, width=14, height=3, state='disable')
 		buttonDummySelectFasta.place(x=210, y=150)
 
-		buttonDummyOutDir = tk.Button(self.master, text='Select Output\ndirectory', 
-			command=self.select_outdir, width=14, height=3, state='disable')
-		buttonDummyOutDir.place(x=400, y=80)
+		buttonOutDir = tk.Button(self.master, text='Select Output\ndirectory', 
+			command=self.select_outdir, width=14, height=3, state='normal')
+		buttonOutDir.place(x=400, y=80)
 
 		buttonDummyReview = tk.Button(self.master, text='Review input\nfiles', 
 			command=self.review_files, width=14, height=3, state='disable')
@@ -69,6 +72,9 @@ class createSnippyWindow(tk.Frame):
 		buttonCancel = tk.Button(self.master, text = "Close", 
 			command=self.close_Window, width=14, height=3)
 		buttonCancel.place(x=600, y=290)
+
+		def change_cursor(widget, cursor):
+			widget.config(cursor=cursor)
 
 		label_snippy = tk.Label(self.master, text= 'Link to SNIPPY: https://github.com/tseemann/snippy', 
 			font=font.Font(size=12), fg='#0000ff')
@@ -82,12 +88,18 @@ class createSnippyWindow(tk.Frame):
 			font=font.Font(size=12), fg='#0000ff')
 		label_fasttree.place(x=20, y=330)
 		label_fasttree.bind('<Button-1>', lambda e:jump_to_link('http://www.microbesonline.org/fasttree'))
+
+		widgets = [label_snippy, label_snpdists, label_fasttree]
+		for widget in widgets:
+			widget.bind("<Enter>", lambda event, w=widget: change_cursor(w, "hand2"))
+			widget.bind("<Leave>", lambda event, w=widget: change_cursor(w, ""))
 		
 	fastq_dic = {}
 	fasta_dic = {}
 	input_dic = {} # input_dic[strain] = {file_type, strain, dir, seq1, seq2}
 	input_list = []
 	dir_path = {'datadir':'', 'outdir':'', 'ref_file':''}
+	dir_path['outdir'] = user_home('snippydir')
 	dir_list = []
 
 	def close_Window(self):
@@ -95,7 +107,7 @@ class createSnippyWindow(tk.Frame):
 
 	def select_ref(self):
 		fTyp = [('fasta', '*.fasta'), ('fasta', '*.fa'), ('fasta', '*.fna'), ('GenBank', '*.gb'), ('GenBank', '*.gbk')]
-		self.dir_path['ref_file'] = tk.filedialog.askopenfilename(parent = self.master,filetypes=fTyp, initialdir=user_home())
+		self.dir_path['ref_file'] = tk.filedialog.askopenfilename(parent = self.master,filetypes=fTyp, initialdir=user_home('datadir'))
 		if self.dir_path['ref_file'] == '':
 			print('No reference is selected')
 			return
@@ -121,49 +133,56 @@ class createSnippyWindow(tk.Frame):
 
 	def select_fastq(self):
 		fTyp = [('fastq', '*.fastq.gz'), ('fastq', '*.fq.gz')]
-		fastq_files = tk.filedialog.askopenfilenames(parent = self.master,filetypes=fTyp, initialdir=user_home())
+		fastq_files = tk.filedialog.askopenfilenames(parent = self.master,filetypes=fTyp, initialdir=user_home('datadir'))
 		print(fastq_files)
 		if len(fastq_files) > 0:
 			for fastq in fastq_files:
-				seq_list = illumina_raw(fastq)
+				seq_list = illumina_fastq(fastq)
 				if seq_list[0] == 'Undetermined':
 					pass
 				else:
 					self.fastq_dic[seq_list[0]] = [seq_list[1], seq_list[2], seq_list[3]]
 			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
 			label_arrow.place(x=360, y=90)
-			buttonOutDir = tk.Button(self.master, text='Select Output\ndirectory', command=self.select_outdir, 
+			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
+			label_arrow.place(x=550, y=90)
+			buttonReview = tk.Button(self.master, text='Review input\nfiles', command=self.review_files, 
 				width=14, height=3, state='normal')
-			buttonOutDir.place(x=400, y=80)
+			buttonReview.place(x=590, y=80)
 			print(self.fastq_dic)
 		else:
 			print('No fastq is selected')
 			return
 
 	def select_spades(self):
-		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home())
+		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home('assemblydir'))
 		print(file_path)
 		fastq_files =[]
 		try:
-			fastq_files = fastq_files + glob.glob(file_path + '/*/fastp/*_R1_fastp.fastq.gz')
-			fastq_files = fastq_files + glob.glob(file_path + '/fastp/*_R1_fastp.fastq.gz')
-			fastq_files = fastq_files + glob.glob(file_path + '/*_R1_fastp.fastq.gz')
+			fastq_files = fastq_files + glob.glob(file_path + '/*/fastp/*_R1_*.fq.gz')
+			fastq_files = fastq_files + glob.glob(file_path + '/fastp/*_R1_*.fq.gz')
+			fastq_files = fastq_files + glob.glob(file_path + '/*_R1_*.fq.gz')
+			fastq_files = fastq_files + glob.glob(file_path + '/*/fastp/*_R1_*.fastq.gz')
+			fastq_files = fastq_files + glob.glob(file_path + '/fastp/*_R1_*.fastq.gz')
+			fastq_files = fastq_files + glob.glob(file_path + '/*_R1_*.fastq.gz')
 		except:
 			print('No directory is selected')
 			return
 		print(fastq_files)
 		if len(fastq_files) > 0:
 			for fastq in fastq_files:
-				seq_list = illumina_fastp(fastq)
+				seq_list = illumina_fastq(fastq)
 				if seq_list[0] == 'Undetermined':
 					pass
 				else:
 					self.fastq_dic[seq_list[0]] = [seq_list[1], seq_list[2], seq_list[3]]
 			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
 			label_arrow.place(x=360, y=90)
-			buttonOutDir = tk.Button(self.master, text='Select Output\ndirectory', command=self.select_outdir, 
+			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
+			label_arrow.place(x=550, y=90)
+			buttonReview = tk.Button(self.master, text='Review input\nfiles', command=self.review_files, 
 				width=14, height=3, state='normal')
-			buttonOutDir.place(x=400, y=80)
+			buttonReview.place(x=590, y=80)
 			print(self.fastq_dic)
 		else:
 			print('No fastq is selected')
@@ -171,7 +190,7 @@ class createSnippyWindow(tk.Frame):
 
 	def select_fasta(self):
 		fTyp = [('fasta', '*.fasta'), ('fasta', '*.fa'), ('fasta', '*.fna')]
-		fasta_files = tk.filedialog.askopenfilenames(parent = self.master,filetypes=fTyp, initialdir=user_home())
+		fasta_files = tk.filedialog.askopenfilenames(parent = self.master,filetypes=fTyp, initialdir=user_home('datadir'))
 		print(fasta_files)
 		if len(fasta_files) > 0:
 			for fasta in fasta_files:
@@ -181,16 +200,18 @@ class createSnippyWindow(tk.Frame):
 				self.fasta_dic[strain] = [dir_name, filename, '']
 			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
 			label_arrow.place(x=360, y=90)
-			buttonOutDir = tk.Button(self.master, text='Select Output\ndirectory', command=self.select_outdir, 
+			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
+			label_arrow.place(x=550, y=90)
+			buttonReview = tk.Button(self.master, text='Review input\nfiles', command=self.review_files, 
 				width=14, height=3, state='normal')
-			buttonOutDir.place(x=400, y=80)
+			buttonReview.place(x=590, y=80)
 			print(self.fasta_dic)
 		else:
 			print('No fasta is selected')
 			return
 
 	def select_outdir(self):
-		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home())
+		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home('snippydir'))
 		if file_path == '':
 			print('No directory is selected')
 			return
@@ -199,11 +220,6 @@ class createSnippyWindow(tk.Frame):
 			self.dir_path['outdir'] = file_path
 		label_outdir = tk.Label(self.master, text='Output dir: ' + file_path, font=font.Font(size=12))
 		label_outdir.place(x=20, y=250)
-		label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
-		label_arrow.place(x=550, y=90)
-		buttonReview = tk.Button(self.master, text='Review input\nfiles', command=self.review_files, 
-			width=14, height=3, state='normal')
-		buttonReview.place(x=590, y=80)
 
 	def review_files(self):
 		def adapt_changes():
