@@ -29,7 +29,7 @@ def docker_tag(key):
 		'unicycler':'0.5.0--py39h2add14b_2',
 		'prokka':'1.14.6--pl5321hdfd78af_4',
 		'dfast':'1.2.18--h5b5514e_1',
-		'chewbbaca':'3.3.2--pyhdfd78af_0',
+		'chewbbaca':'3.2.0--pyhdfd78af_0',
 		'prodigal':'2.6.3--h031d066_6',
 		'fastani':'1.34--h4dfc31f_1',
 		'blast':'2.14.1--pl5321h6f7f691_0'
