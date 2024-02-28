@@ -7,6 +7,7 @@
 #                                                                               #
 #################################################################################
 
+# 2024/02/27 fix qfas error
 # 2024/02/07 Ver.0.1
 
 import tkinter as tk
@@ -317,6 +318,7 @@ class createANIWindow(tk.Frame):
 				
 			def blast_sequence(sequence):
 				print("Performing BLAST search.")
+				qfas = 'NA'
 				if os.path.isfile(f"{user_home('blastdbdir')}/nt_prok.00.nhr") and self.use_db == 'local':
 					"""Perform a local BLAST search of the given sequence."""
 					species_name, qfas = local_blast(sequence)
@@ -398,8 +400,9 @@ class createANIWindow(tk.Frame):
 				if self.manual_ref == 'NA':
 					ref_species, self.dir_path['ref_file'], qfas = species_search(
 									f"{self.input_dic[key][2]}/{self.input_dic[key][3]}", user_home('refseqdir'))
-					os.remove(f"{user_home('anioutdir')}/{qfas}")
-					os.remove(f"{user_home('anioutdir')}/{qfas}.xml")
+					if qfas != 'NA':
+						os.remove(f"{user_home('anioutdir')}/{qfas}")
+						os.remove(f"{user_home('anioutdir')}/{qfas}.xml")
 				else:
 					ref_species = os.path.splitext(os.path.basename(self.dir_path['ref_file']))[0].replace(' ', '_')
 				dt_now = datetime.datetime.now()

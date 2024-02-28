@@ -36,7 +36,7 @@ def illumina_fastq(file_name):
 	file_part = os.path.basename(file_name).split('_')
 		### strain_R1_fastp.fastq.gz (after fastp trimming)
 	sample = file_part[0]
-	if '_R1_' in file_part:
+	if 'R1' in file_part:
 		R1 = os.path.basename(file_name)
 		R2 = R1.replace('_R1_', '_R2_')
 	else:

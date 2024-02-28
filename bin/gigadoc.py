@@ -7,6 +7,7 @@
 #                                                                               #
 #################################################################################
 
+# 2024/02/28 Fix bugs
 # 2024/02/02 Default Settings, cgMLST, fastANI, and Update check support
 # 2023/01/05 AMRfinder and MLST
 # 2022/11/30 SPAdes and SNIPPY
@@ -29,7 +30,7 @@ import os
 import requests
 import json
 
-time_stump = '2024-02-08'
+time_stump = '2024-02-28'
 
 class mainwindow(tk.Frame):
 	def __init__(self,master):
@@ -57,7 +58,7 @@ class mainwindow(tk.Frame):
 		tab_control.pack(expand=1, fill="both")
 		
 		tab_phylo = ttk.Frame(tab_control)
-		tab_control.add(tab_phylo, text='Pylogeny')
+		tab_control.add(tab_phylo, text='Phylogeny')
 		tab_control.pack(expand=1, fill="both")
 
 		### Create frame

@@ -1,7 +1,7 @@
 # GIGAdoc
 GUI for Microbial Genome Analysis on Docker
 
-GIGAdoc offers a graphical user interface (GUI) for bioinformatics software, facilitating microbial genome analysis on Docker. It's developed for use on Linux but is also compatible with Windows through WSL2. GIGAdoc simplifies the process of using advanced genomic analysis tools by providing a user-friendly interface. The latest version introduces several enhancements, including default settings for folders, support for fastANI and cgMLST, alongside other minor corrections, improving overall usability and functionality.
+GIGAdoc offers a graphical user interface (GUI) for bioinformatics software, facilitating microbial genome analysis on Docker. It's developed for use on Linux but is also compatible with Windows through WSL2. GIGAdoc simplifies the process of using advanced genomic analysis tools by providing a user-friendly interface. The latest version introduces several enhancements, including default settings for folders, support for fastANI and cgMLST, alongside other minor corrections, improving overall usability and functionality. The update on 28th February 2024 focuses on bug fixes, further stabilizing the application and enhancing user experience.
 
 ## Currently Supported Software
 
@@ -25,6 +25,7 @@ These tools cover various aspects of genomic analysis, from pre-processing and a
 ## Other Improvements
 
 - Several small corrections and optimizations have been made to improve performance and user experience.
+- **Bug Fixes (28th February 2024)**: Addressed various issues to ensure smoother operation and reliability of GIGAdoc across supported platforms.
 
 ## System Requirements
 
