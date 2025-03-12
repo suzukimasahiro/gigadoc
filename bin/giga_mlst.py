@@ -7,6 +7,7 @@
 #                                                                               #
 #################################################################################
 
+# 2025/02/25 Change input fasta select window to take over the directory opened previously.
 # 2024/02/02 Default directory support
 # 2023/05/26 mouse cursor change for link
 # 2023/01/05 initial ver.
@@ -66,8 +67,11 @@ class createMLSTWindow(tk.Frame):
 
 		label_mlst = tk.Label(self.master, text= 'Link to mlst: https://github.com/tseemann/mlst', 
 			font=font.Font(size=12), fg='#0000ff')
-		label_mlst.place(x=20, y=250)
+		label_mlst.place(x=20, y=240)
 		label_mlst.bind('<Button-1>', lambda e:jump_to_link('https://github.com/tseemann/mlst'))
+
+		label_mlst_version = tk.Label(self.master, text= 'version 2.23.0', font=font.Font(size=10))
+		label_mlst_version.place(x=20, y=260)
 
 		widgets = [label_mlst]
 		for widget in widgets:
@@ -80,13 +84,14 @@ class createMLSTWindow(tk.Frame):
 	dir_path = {'datadir':'', 'outdir':'', 'ref_file':''}
 	dir_path['outdir'] = user_home('mlstoutdir')
 	dir_list = []
+	open_dir = user_home('datadir') # 2025/02/25
 
 	def close_Window(self):
 		self.master.destroy()
 
 	def select_fasta(self):
 		fTyp = [('fasta', '*.fasta'), ('fasta', '*.fa'), ('fasta', '*.fna')]
-		fasta_files = tk.filedialog.askopenfilenames(parent = self.master,filetypes=fTyp, initialdir=user_home('datadir'))
+		fasta_files = tk.filedialog.askopenfilenames(parent = self.master,filetypes=fTyp, initialdir=self.open_dir) # 2025/02/25
 		print(fasta_files)
 		if len(fasta_files) > 0:
 			for fasta in fasta_files:
@@ -94,6 +99,7 @@ class createMLSTWindow(tk.Frame):
 				dir_name = os.path.dirname(fasta)
 				filename = os.path.basename(fasta)
 				self.fasta_dic[strain] = [dir_name, filename, '']
+				self.open_dir = dir_name # 2025/02/25
 			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
 			label_arrow.place(x=170, y=60)
 			buttonReview = tk.Button(self.master, text='Review input\nfiles', command=self.review_files, 
@@ -137,8 +143,8 @@ class createMLSTWindow(tk.Frame):
 
 	def select_outdir(self):
 		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home('mlstoutdir'))
-		if file_path == '':
-			print('No directory is selected')
+		if len(file_path) == 0:
+			print(f"{self.dir_path['outdir']} is selected")
 			return
 		else:	
 			print(file_path)
@@ -188,7 +194,7 @@ class createMLSTWindow(tk.Frame):
 				for key in self.input_dic:
 					mlst_cmd = 'mlst ' + self.input_dic[key][3]
 					print(self.input_dic[key])
-					mlst_results = client.containers.run(mlst_container, mlst_cmd, remove=True, 
+					mlst_results = client.containers.run(mlst_container, mlst_cmd, remove=True, platform = 'linux/x86_64', 
 						volumes=[self.input_dic[key][2] + ':/mnt'], working_dir='/mnt')
 					f.write(mlst_results.decode('utf-8'))
 					print(mlst_results.decode('utf8'))

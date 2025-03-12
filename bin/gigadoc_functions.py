@@ -8,17 +8,22 @@
 #                                                                               #
 #################################################################################
 
+# 2025/02/25 Add "Download reference genome sequence" function
 # 2024/02/05
 # 2023/07/05 
 # 2023/01/05
 
 import os
 import os.path
+from pathlib import Path
 import re
 import json
 import webbrowser
 from urllib.error import HTTPError
 from Bio import Entrez, SeqIO
+import urllib.request
+import gzip
+import shutil
 
 def system_home():
 	if os.name == 'nt':
@@ -31,6 +36,15 @@ def system_home():
 def user_home(dir_name):
 	settings_dic = settings()
 	return(settings_dic[dir_name])
+
+def get_download_directory() -> str:
+	"""Returns the default download directory for the current operating system."""
+	if os.name == 'nt':  # Windows
+		download_dir = Path(os.getenv('USERPROFILE')) / 'Downloads'
+	else:  # macOS and Linux
+		download_dir = Path.home() / 'Downloads'
+	
+	return str(download_dir)
 
 def illumina_fastq(file_name):
 	file_part = os.path.basename(file_name).split('_')
@@ -222,3 +236,55 @@ def select_fastq(file_path):
 		return(fastq_dic)
 	else:
 		return('NotFound')
+
+def dl_refGenomeSeq(species_name, email):
+	print(species_name, email)
+	########## Downloading Reference genome ##########
+	def search_reference_genome_assembly_id(species, email):
+		"""Search for the assembly ID of the reference genome for the specified species."""
+		Entrez.email = email
+		query = f"{species}[Organism] AND (\"reference genome\"[Title] OR \"representative genome\"[Title])"
+		handle = Entrez.esearch(db="assembly", term=query, retmax=10)
+		record = Entrez.read(handle)
+		handle.close()
+		assembly_ids = record["IdList"]
+		return assembly_ids[0] if assembly_ids else None
+			
+	def fetch_genome_summary(assembly_id):
+		"""Fetch the summary of the genome assembly to get the FTP link."""
+		handle = Entrez.esummary(db="assembly", id=assembly_id)
+		summary = Entrez.read(handle)
+		handle.close()
+		return summary['DocumentSummarySet']['DocumentSummary'][0]['FtpPath_RefSeq']
+			
+	def download_genome(ftp_path, compressed_file, extracted_file):
+		"""Download and extract the genome file from the FTP path."""
+		ftp_path_genome = ftp_path.replace("ftp://", "https://") + '/' + ftp_path.split('/')[-1] + '_genomic.fna.gz'
+		urllib.request.urlretrieve(ftp_path_genome, compressed_file)
+	
+		# Extracting the gzipped file
+		with gzip.open(compressed_file, 'rb') as f_in:
+			with open(extracted_file, 'wb') as f_out:
+				shutil.copyfileobj(f_in, f_out)
+	
+		print(f"Genome downloaded and extracted to {extracted_file}")
+
+	assembly_id = search_reference_genome_assembly_id(species_name, email)
+	if assembly_id:
+		print(f"Found Reference Assembly ID for {species_name}: {assembly_id}")
+		ftp_path = fetch_genome_summary(assembly_id)
+		print(f"FTP Path for genome: {ftp_path}")
+	
+		# Downloading and extracting the genome
+		refseqdir = user_home('refseqdir')
+		compressed_file = f"{refseqdir}/{species_name.replace(' ', '_')}_genome.fna.gz"
+		extracted_file = f"{refseqdir}/{species_name.replace(' ', '_')}_genome.fna"
+		if os.path.isfile(extracted_file):
+			print(f"Found {extracted_file}")
+			return(extracted_file)
+		else:
+			download_genome(ftp_path, compressed_file, extracted_file)
+			return(extracted_file)
+	else:
+		print(f"No reference genome found for {species_name}.")
+		return('NoFile')

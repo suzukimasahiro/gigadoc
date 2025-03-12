@@ -7,6 +7,7 @@
 #                                                                               #
 #################################################################################
 
+# 2025/03/12 Support AMRfinder option settings and other minor updates
 # 2024/02/28 Fix bugs
 # 2024/02/02 Default Settings, cgMLST, fastANI, and Update check support
 # 2023/01/05 AMRfinder and MLST
@@ -30,7 +31,7 @@ import os
 import requests
 import json
 
-time_stump = '2024-02-28'
+time_stump = '2025-03-12'
 
 class mainwindow(tk.Frame):
 	def __init__(self,master):
@@ -93,19 +94,12 @@ class mainwindow(tk.Frame):
 			self.buttonMLST = ttk.Button(tab_typing, text="MLST", command=self.open_mlst, width=18, padding=[12,20], state='disable')
 		self.buttonMLST.place(x=20, y=40)
 
-		##### cgMLST #####
-		if mem.total >= 8000000000: # MLST requires 8 Gbytes or more memory
-			self.buttoncgMLST = ttk.Button(tab_typing, text="cgMLST", command=self.open_cgmlst, width=18, padding=[12,20])
-		else:
-			self.buttoncgMLST = ttk.Button(tab_typing, text="cgMLST", command=self.open_cgmlst, width=18, padding=[12,20], state='disable')
-		self.buttoncgMLST.place(x=220, y=40)
-
 		##### fastANI #####
 		if mem.total >= 8000000000: # fastANI requires 8 Gbytes or more memory
 			self.buttonANI = ttk.Button(tab_typing, text="fastANI", command=self.open_ani, width=18, padding=[12,20])
 		else:
 			self.buttonANI = ttk.Button(tab_typing, text="fastANI", command=self.open_ani, width=18, padding=[12,20], state='disable')
-		self.buttonANI.place(x=420, y=40)
+		self.buttonANI.place(x=220, y=40)
 
 		##### SNIPPY #####
 		if mem.total >= 8000000000: # SNIPPY requires 8 Gbytes or more memory
@@ -113,6 +107,13 @@ class mainwindow(tk.Frame):
 		else:
 			self.buttonSnippy = ttk.Button(tab_phylo, text="SNIPPY", command=self.open_snippy, width=18, padding=[12,20], state='disable')
 		self.buttonSnippy.place(x=20, y=40)
+
+		##### cgMLST #####
+		if mem.total >= 8000000000: # MLST requires 8 Gbytes or more memory
+			self.buttoncgMLST = ttk.Button(tab_phylo, text="cgMLST", command=self.open_cgmlst, width=18, padding=[12,20])
+		else:
+			self.buttoncgMLST = ttk.Button(tab_phylo, text="cgMLST", command=self.open_cgmlst, width=18, padding=[12,20], state='disable')
+		self.buttoncgMLST.place(x=220, y=40)
 
 		##### Default settings #####
 		self.buttonSettings = tk.Button(frame, text="Default Settings", command=self.open_settings, width=18, height=2)
@@ -156,7 +157,7 @@ class mainwindow(tk.Frame):
 		date1 = datetime.strptime(time_stump, '%Y-%m-%d').date()
 		date2 = datetime.strptime(latest_version, '%Y-%m-%d').date()
 		date_difference = date2 - date1
-		if date_difference.days >= 10:
+		if date_difference.days >= 3:
 			ret = messagebox.askyesno('New version is found', 
 				'Open github GIGAdoc page.')
 			if ret == True:

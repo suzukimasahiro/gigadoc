@@ -7,6 +7,8 @@
 #                                                                               #
 #################################################################################
 
+# 2025/02/25 Move "Download reference genome sequence" function to gigadoc_functions.py
+# 2025/02/25 Change input fasta select window to take over the directory opened previously.
 # 2024/02/27 fix qfas error
 # 2024/02/07 Ver.0.1
 
@@ -23,16 +25,12 @@ import docker
 import datetime
 import psutil
 from gigadoc_tags import docker_tag
-from gigadoc_functions import user_home, jump_to_link, is_valid_email
+from gigadoc_functions import user_home, jump_to_link, is_valid_email, dl_refGenomeSeq
 import re
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Blast import NCBIWWW, NCBIXML
-from Bio import Entrez
-import urllib.request
-import gzip
-import shutil
 
 
 class createANIWindow(tk.Frame):
@@ -45,6 +43,7 @@ class createANIWindow(tk.Frame):
 	email = ''
 	manual_ref = 'NA'
 	use_db = ''
+	open_dir = user_home('datadir') # 2025/02/25
 
 	def __init__(self, master  = None):
 		super().__init__(master)
@@ -59,14 +58,14 @@ class createANIWindow(tk.Frame):
 		def push_done():
 			self.use_db = variable.get()
 			self.email = Email_box.get()
-			if is_valid_email(self.email):
+			if is_valid_email(self.email) or self.manual_ref not in ('','NA'):
 				self.review_files()
 			else:
 				messagebox.showerror('ERROR', 'Enter E-mail address')
 
 		def select_fasta():
 			fTyp = [('fasta', '*.fasta'), ('fasta', '*.fa'), ('fasta', '*.fna')]
-			fasta_files = tk.filedialog.askopenfilenames(parent = self.master,filetypes=fTyp, initialdir=user_home('datadir'))
+			fasta_files = tk.filedialog.askopenfilenames(parent = self.master,filetypes=fTyp, initialdir=self.open_dir) # 2025/02/25
 			print(fasta_files)
 			if len(fasta_files) > 0:
 				for fasta in fasta_files:
@@ -74,6 +73,7 @@ class createANIWindow(tk.Frame):
 					dir_name = os.path.dirname(fasta)
 					filename = os.path.basename(fasta)
 					self.fasta_dic[strain] = [dir_name, filename, '']
+					self.open_dir = dir_name # 2025/02/25
 				label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
 				label_arrow.place(x=170, y=50)
 				label_arrow2 = tk.Label(self.master, text='→', font=font.Font(size=20))
@@ -134,8 +134,8 @@ class createANIWindow(tk.Frame):
 
 		def select_outdir():
 			file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home('anioutdir'))
-			if file_path == '':
-				print('No directory is selected')
+			if len(file_path) == 0:
+				print(f"{self.dir_path['outdir']} is selected")
 				return
 			else:	
 				print(file_path)
@@ -145,7 +145,7 @@ class createANIWindow(tk.Frame):
 			if messagebox.askyesno('Download db files takes a time.','Are you sure to get nt_prok database?'):
 				client = docker.from_env()
 				blast_container = f"quay.io/biocontainers/blast:{docker_tag('blast')}"
-				client.containers.run(blast_container, 'update_blastdb.pl --decompress nt_prok', remove=True, 
+				client.containers.run(blast_container, 'update_blastdb.pl --decompress nt_prok', remove=True, platform = 'linux/x86_64', 
 						volumes=[f"{user_home('blastdbdir')}:/home"], working_dir='/home')
 				
 
@@ -211,12 +211,15 @@ class createANIWindow(tk.Frame):
 
 		label_ani = tk.Label(self.master, text= 'Link to fastANI: https://github.com/ParBLiSS/FastANI', 
 			font=font.Font(size=12), fg='#0000ff')
-		label_ani.place(x=190, y=230)
+		label_ani.place(x=190, y=226)
 		label_ani.bind('<Button-1>', lambda e:jump_to_link('https://github.com/ParBLiSS/FastANI'))
+
+		label_ani_version = tk.Label(self.master, text= 'version 1.34', font=font.Font(size=10))
+		label_ani_version.place(x=190, y=245)
 
 		label_ddh = tk.Label(self.master, text= 'Try digital DDH. Link to TYGS/GGDC', 
 			font=font.Font(size=12), fg='#0000ff')
-		label_ddh.place(x=190, y=255)
+		label_ddh.place(x=190, y=265)
 		label_ddh.bind('<Button-1>', lambda e:jump_to_link('https://ggdc.dsmz.de/'))
 
 		widgets = [label_ani, label_ddh]
@@ -285,7 +288,7 @@ class createANIWindow(tk.Frame):
 				client = docker.from_env()
 				blast_container = f"quay.io/biocontainers/blast:{docker_tag('blast')}"
 				blast_cmd = f"blastn -db /mnt/nt_prok -query {qfas} -out {qfas}.xml -outfmt 5 -num_threads 4"
-				blast_results = client.containers.run(blast_container, blast_cmd, remove=True, 
+				blast_results = client.containers.run(blast_container, blast_cmd, remove=True, platform = 'linux/x86_64', 
 						volumes=[f"{user_home('blastdbdir')}:/mnt", f"{user_home('anioutdir')}:/home"], working_dir='/home')
 				with open(f"{user_home('anioutdir')}/{qfas}.xml") as result_handle:
 					blast_records = NCBIXML.parse(result_handle)
@@ -331,63 +334,21 @@ class createANIWindow(tk.Frame):
 					species_name = online_blast(sequence)
 				return(species_name, qfas)
 			
-			def search_reference_genome_assembly_id(species):
-				"""Search for the assembly ID of the reference genome for the specified species."""
-				Entrez.email = self.email
-				query = f"{species}[Organism] AND (\"reference genome\"[Title] OR \"representative genome\"[Title])"
-				handle = Entrez.esearch(db="assembly", term=query, retmax=10)
-				record = Entrez.read(handle)
-				handle.close()
-				assembly_ids = record["IdList"]
-				return assembly_ids[0] if assembly_ids else None
-			
-			def fetch_genome_summary(assembly_id):
-				"""Fetch the summary of the genome assembly to get the FTP link."""
-				handle = Entrez.esummary(db="assembly", id=assembly_id)
-				summary = Entrez.read(handle)
-				handle.close()
-				return summary['DocumentSummarySet']['DocumentSummary'][0]['FtpPath_RefSeq']
-			
-			def download_genome(ftp_path, compressed_file, extracted_file):
-				"""Download and extract the genome file from the FTP path."""
-				ftp_path_genome = ftp_path.replace("ftp://", "https://") + '/' + ftp_path.split('/')[-1] + '_genomic.fna.gz'
-				urllib.request.urlretrieve(ftp_path_genome, compressed_file)
-			
-				# Extracting the gzipped file
-				with gzip.open(compressed_file, 'rb') as f_in:
-					with open(extracted_file, 'wb') as f_out:
-						shutil.copyfileobj(f_in, f_out)
-			
-				print(f"Genome downloaded and extracted to {extracted_file}")
 			
 			def species_search(multifasta_file, refseqdir):
 				sequence = extract_sequence_range(multifasta_file, 500, 1500)
-				#result_handle = blast_sequence(sequence)
-				#species_name = parse_blast_result(result_handle)
 				species_name, qfas = blast_sequence(sequence)
+				
 				if species_name == 'NotFound':
 					return('NotFound', 'NoFile')
 				else:
 					print(f"Species identified: {species_name}")
-			
-				assembly_id = search_reference_genome_assembly_id(species_name)
-				if assembly_id:
-					print(f"Found Reference Assembly ID for {species_name}: {assembly_id}")
-					ftp_path = fetch_genome_summary(assembly_id)
-					print(f"FTP Path for genome: {ftp_path}")
 				
-					# Downloading and extracting the genome
-					compressed_file = f"{refseqdir}/{species_name.replace(' ', '_')}_genome.fna.gz"
-					extracted_file = f"{refseqdir}/{species_name.replace(' ', '_')}_genome.fna"
-					if os.path.isfile(extracted_file):
-						print(f"Found {extracted_file}")
-					else:
-						download_genome(ftp_path, compressed_file, extracted_file)
-				else:
-					print(f"No reference genome found for {species_name}.")
-					species_name = 'NotFound'
-					return('NotFound', 'NoFile')
-				return(species_name.replace(' ', '_'), extracted_file, qfas)
+				extracted_file = dl_refGenomeSeq(species_name, self.email) #2025/02/28
+				species_tag = species_name.replace(' ', '_')
+				if extracted_file == 'NoFile':
+					species_tag = 'NotFound'
+				return(species_tag, extracted_file, qfas)
 			
 			adapt_changes()
 			print(self.input_dic)
@@ -416,10 +377,10 @@ class createANIWindow(tk.Frame):
 					outfile = f"{key}-{ref_species}_{str(dt_now.strftime('%Y%m%d%H%M'))}.txt"
 					ani_cmd = f"fastANI -q /mnt/{self.input_dic[key][3]} -r /media/{ref_file} -o {outfile}"
 					print(self.input_dic[key])
-					client.containers.run(fastani_container, ani_cmd, remove=True, 
+					client.containers.run(fastani_container, ani_cmd, remove=True, platform = 'linux/x86_64', 
 						volumes=[f"{self.input_dic[key][2]}:/mnt", f"{ref_dir}:/media", f"{self.dir_path['outdir']}:/home"], 
 						working_dir='/home')
-					client.containers.run(fastani_container, f"chmod 777 {outfile}", remove=True, 
+					client.containers.run(fastani_container, f"chmod 777 {outfile}", remove=True, platform = 'linux/x86_64', 
 						volumes=[f"{self.dir_path['outdir']}:/home"], working_dir='/home')
 			
 			self.dir_path['ref_file'] = ''

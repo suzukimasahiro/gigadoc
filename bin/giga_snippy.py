@@ -7,6 +7,7 @@
 #                                                                               #
 #################################################################################
 
+# 2025/02/25 Change input fasta select window to take over the directory opened previously.
 # 2024/02/02 Ver.0.1.2 Default directory support
 # 2023/05/26 Ver.0.1.1 mouse cursor change for link
 # 2023/01/05 SPAdes results directory support
@@ -71,10 +72,18 @@ class createSnippyWindow(tk.Frame):
 
 		buttonCancel = tk.Button(self.master, text = "Close", 
 			command=self.close_Window, width=14, height=3)
-		buttonCancel.place(x=600, y=290)
+		buttonCancel.place(x=615, y=280)
 
 		def change_cursor(widget, cursor):
 			widget.config(cursor=cursor)
+
+		label_OutDir_txt1 = 'For new analyses, it is recommended \nto create and specify a new directory.'
+		label_OutDir1 = tk.Label(self.master, text= label_OutDir_txt1, font=font.Font(size=10), fg='#006aff', anchor=tk.W, justify='left')
+		label_OutDir1.place(x=390, y=150)
+
+		label_OutDir_txt2 = 'If you want to add new strains to an \nexisting analysis, you can specify the \ndirectory. Note that you must use the \nsame reference in this case.'
+		label_OutDir2 = tk.Label(self.master, text= label_OutDir_txt2, font=font.Font(size=10), fg='#006aff', anchor=tk.W, justify='left')
+		label_OutDir2.place(x=390, y=190)
 
 		label_snippy = tk.Label(self.master, text= 'Link to SNIPPY: https://github.com/tseemann/snippy', 
 			font=font.Font(size=12), fg='#0000ff')
@@ -89,6 +98,13 @@ class createSnippyWindow(tk.Frame):
 		label_fasttree.place(x=20, y=330)
 		label_fasttree.bind('<Button-1>', lambda e:jump_to_link('http://www.microbesonline.org/fasttree'))
 
+		label_snippy_version = tk.Label(self.master, text= 'version 4.6.0', font=font.Font(size=10))
+		label_snippy_version.place(x=490, y=280)
+		label_snpdists_version = tk.Label(self.master, text= 'version 0.8.2', font=font.Font(size=10))
+		label_snpdists_version.place(x=490, y=305)
+		label_fasttree_version = tk.Label(self.master, text= 'version 2.1.11', font=font.Font(size=10))
+		label_fasttree_version.place(x=490, y=330)
+
 		widgets = [label_snippy, label_snpdists, label_fasttree]
 		for widget in widgets:
 			widget.bind("<Enter>", lambda event, w=widget: change_cursor(w, "hand2"))
@@ -101,22 +117,24 @@ class createSnippyWindow(tk.Frame):
 	dir_path = {'datadir':'', 'outdir':'', 'ref_file':''}
 	dir_path['outdir'] = user_home('snippydir')
 	dir_list = []
+	open_dir = user_home('datadir') # 2025/02/25
 
 	def close_Window(self):
 		self.master.destroy()
 
 	def select_ref(self):
 		fTyp = [('fasta', '*.fasta'), ('fasta', '*.fa'), ('fasta', '*.fna'), ('GenBank', '*.gb'), ('GenBank', '*.gbk')]
-		self.dir_path['ref_file'] = tk.filedialog.askopenfilename(parent = self.master,filetypes=fTyp, initialdir=user_home('datadir'))
-		if self.dir_path['ref_file'] == '':
+		self.dir_path['ref_file'] = tk.filedialog.askopenfilename(parent = self.master,filetypes=fTyp, 
+									initialdir=user_home('refseqdir'))
+		if len(self.dir_path['ref_file']) == 0:
 			print('No reference is selected')
 			return
 		else:	
 			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
 			label_arrow.place(x=170, y=90)
 			
-			label_ref = tk.Label(self.master, text='Reference file: ' + self.dir_path['ref_file'], font=font.Font(size=12))
-			label_ref.place(x=20, y=225)
+			label_ref = tk.Label(self.master, text='Reference file: ' + self.dir_path['ref_file'], font=font.Font(size=11))
+			label_ref.place(x=20, y=245)
 
 			buttonSelectFastq = tk.Button(self.master, text='Select FASTQ\nfiles', command=self.select_fastq, 
 				width=14, height=3, state='normal')
@@ -190,7 +208,7 @@ class createSnippyWindow(tk.Frame):
 
 	def select_fasta(self):
 		fTyp = [('fasta', '*.fasta'), ('fasta', '*.fa'), ('fasta', '*.fna')]
-		fasta_files = tk.filedialog.askopenfilenames(parent = self.master,filetypes=fTyp, initialdir=user_home('datadir'))
+		fasta_files = tk.filedialog.askopenfilenames(parent = self.master,filetypes=fTyp, initialdir=self.open_dir) # 2025/02/25
 		print(fasta_files)
 		if len(fasta_files) > 0:
 			for fasta in fasta_files:
@@ -198,6 +216,7 @@ class createSnippyWindow(tk.Frame):
 				dir_name = os.path.dirname(fasta)
 				filename = os.path.basename(fasta)
 				self.fasta_dic[strain] = [dir_name, filename, '']
+				self.open_dir = dir_name # 2025/02/25
 			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
 			label_arrow.place(x=360, y=90)
 			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
@@ -212,14 +231,15 @@ class createSnippyWindow(tk.Frame):
 
 	def select_outdir(self):
 		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home('snippydir'))
-		if file_path == '':
-			print('No directory is selected')
+		if len(file_path) == 0:
+			print(f"{self.dir_path['outdir']} is selected")
 			return
 		else:	
 			print(file_path)
 			self.dir_path['outdir'] = file_path
-		label_outdir = tk.Label(self.master, text='Output dir: ' + file_path, font=font.Font(size=12))
-		label_outdir.place(x=20, y=250)
+		label_outdir = tk.Label(self.master, text='Output dir:\n' + file_path, 
+								font=font.Font(size=11), anchor=tk.W, justify='left')
+		label_outdir.place(x=390, y=30)
 
 	def review_files(self):
 		def adapt_changes():
@@ -286,21 +306,23 @@ class createSnippyWindow(tk.Frame):
 				else:
 					volume_list = [outdir + ':/home', each[1] + ':/mnt']
 					print(volume_list)
-					client.containers.run(snippy_container, each[2], remove=True, volumes=volume_list, working_dir='/home')
+					client.containers.run(snippy_container, each[2], remove=True, platform = 'linux/x86_64', 
+										volumes=volume_list, working_dir='/home')
 			print('snippy-core')
 			snippy_core = 'snippy-core --ref \'' + reference + '\' ' + strains
-			client.containers.run(snippy_container, snippy_core, remove=True, volumes=[outdir + ':/home'], working_dir='/home')
+			client.containers.run(snippy_container, snippy_core, remove=True, platform = 'linux/x86_64', 
+									volumes=[outdir + ':/home'], working_dir='/home')
 			
 			print('snp-dists')
 			snpdists_cmd = 'snp-dists core.aln'
-			snp_distance = client.containers.run(snpdists_container, snpdists_cmd, remove=True, 
+			snp_distance = client.containers.run(snpdists_container, snpdists_cmd, remove=True, platform = 'linux/x86_64', 
 				volumes=[outdir + ':/home'], working_dir='/home')
 			with open(outdir + '/core_distance.tab', 'w', newline='\n') as f:
 				f.write(snp_distance.decode('utf-8'))
 			
 			print('FastTree')
 			fasttree_cmd = 'FastTree -gtr -nt core.aln'
-			tre_file = client.containers.run(fasttree_container, fasttree_cmd, remove=True, 
+			tre_file = client.containers.run(fasttree_container, fasttree_cmd, remove=True, platform = 'linux/x86_64', 
 				volumes=[outdir + ':/home'], working_dir='/home')
 			with open(outdir + '/core.tre', 'w', newline='\n') as f:
 				f.write(tre_file.decode('utf-8'))

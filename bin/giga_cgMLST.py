@@ -7,6 +7,8 @@
 #                                                                               #
 #################################################################################
 
+# 2025/03/12 Change scheme selection combo-box to display only installed schemes
+# 2025/02/25 Change input fasta select window to take over the directory opened previously.
 # 2023/12/14 Ver.0.1
 
 import tkinter as tk
@@ -22,7 +24,7 @@ import datetime
 import psutil
 from gigadoc_tags import docker_tag
 from gigadoc_functions import user_home, jump_to_link, spades_contig, chk_dir
-from cgMLST_settings import cgmlst_schemes, cgmlst_reference, prepare_dir, cgmlst_files
+from giga_cgMLSTsettings import cgmlst_schemes, prepare_dir, cgmlst_files
 from giga_cgMLSTscheme import createCgMLSTschemeWindow
 
 
@@ -39,50 +41,57 @@ class createcgMLSTWindow(tk.Frame):
 
 		def select_combo(event):
 			self.scheme = comboSelectScheme.get()
-			dbdir = cgmlst_files(self.scheme,'cgMLSTdir') + cgmlst_files(self.scheme, 'dbdir')
+			dbdir = f"{user_home('cgMLSTdir')}/schemes/{self.scheme}" #cgmlst_files(self.scheme,'cgMLSTdir') + cgmlst_files(self.scheme, 'dbdir')
 			print(self.scheme)
-			if os.path.isdir(dbdir):
-				print('DB directory found')
-				#label_outdir = tk.Label(self.master, text=self.scheme, font=font.Font(size=12))
-				#label_outdir.place(x=20, y=90)
-				buttonSelectFasta = tk.Button(self.master, text='Select fasta\nfiles', 
-					command=self.select_fasta, width=14, height=3, state='normal')
-				buttonSelectFasta.place(x=20, y=70)
-				buttonSelectDir = tk.Button(self.master, text='SPAdes Assembly\noutput directory', 
-					command=self.select_spades, width=14, height=3, state='normal')
-				buttonSelectDir.place(x=20, y=140)
-				'''
-				buttonSelectDB = tk.Button(self.master,
-					text='Download and\nmake DB',
-					command=chk_db(), 
-					width=14,
-					height=3,
-					state='disable'
-					)
-				buttonSelectDB.place(x=530, y=15)
-				'''
-			else:
-				ret = messagebox.askyesno('DB is not found', 
-					f"\"{self.scheme}\" scheme is not found. Do you get the database?")
-				if ret == True:
-					self.newWindow = tk.Toplevel(self.master)
-					self.app = createCgMLSTschemeWindow(self.newWindow)
-				else:
-					pass
+			buttonSelectFasta = tk.Button(self.master, text='Select fasta\nfiles', 
+				command=self.select_fasta, width=14, height=3, state='normal')
+			buttonSelectFasta.place(x=20, y=70)
+			buttonSelectDir = tk.Button(self.master, text='SPAdes Assembly\noutput directory', 
+				command=self.select_spades, width=14, height=3, state='normal')
+			buttonSelectDir.place(x=20, y=140)
 
 		def chk_db():
 			print('chk_db')
 					
+		def get_directories():
+			"""Returns a list of directories (not files) in the watched directory."""
+			try:
+				return sorted([d for d in os.listdir(f"{user_home('cgMLSTdir')}/schemes") 
+							if os.path.isdir(os.path.join(f"{user_home('cgMLSTdir')}/schemes", d))]
+							)
+			except FileNotFoundError:
+				return []  # Return empty if directory is missing
 
+		def update_combobox(combo_box, last_directories):
+			"""Updates the combobox if directory structure changes (only directories)."""
+			current_directories = get_directories()
+			if current_directories != last_directories[0]:  # Only update if there's a change
+				combo_box["values"] = current_directories  # Update values
+				if current_directories:
+					combo_box.current(0)  # Select the first item if available
+				else:
+					combo_box.set("")  # Clear selection if empty
+				last_directories[0] = current_directories  # Save the new state
+
+			# Schedule the next check after 2 seconds
+			self.master.after(2000, lambda: update_combobox(combo_box, last_directories))
+
+
+		last_directories = ['Empty']
 
 		if mem.total >= 8000000000: # cgMLST requires 8 Gbytes or more memory
 			value = tk.StringVar()
+			comboSelectScheme = ttk.Combobox(self.master, values=last_directories, state="readonly", width = 45)
+			'''
 			comboSelectScheme = ttk.Combobox(self.master,
 								state="readonly",
-								values = cgmlst_schemes('key'),
+								values = 
+								[f for f in os.listdir(f"{user_home('cgMLSTdir')}/schemes") 
+								if os.path.isdir(os.path.join(f"{user_home('cgMLSTdir')}/schemes", f))], #cgmlst_schemes('key'), #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 								textvariable = value,
 								width = 45
 								)
+			'''
 			comboSelectScheme.bind('<<ComboboxSelected>>', select_combo)
 		else:
 			comboSelectScheme = ttk.Combobox(self.master, state="disable", width = 45)
@@ -102,6 +111,13 @@ class createcgMLSTWindow(tk.Frame):
 			command=self.review_files, width=14, height=3, state='disable')
 		buttonDummyReview.place(x=210, y=100)
 
+		def open_CgMLSTschemeWindow():
+			self.newWindow = tk.Toplevel(self.master)
+			self.app = createCgMLSTschemeWindow(self.newWindow)
+		buttonInstallScheme = tk.Button(self.master, text = "Install\ncgMLST scheme", 
+			command=open_CgMLSTschemeWindow, width=14, height=3)
+		buttonInstallScheme.place(x=600, y=25)
+
 		buttonCancel = tk.Button(self.master, text = "Close", 
 			command=self.close_Window, width=14, height=3)
 		buttonCancel.place(x=600, y=160)
@@ -118,12 +134,15 @@ class createcgMLSTWindow(tk.Frame):
 		for widget in widgets:
 			widget.bind("<Enter>", lambda event, w=widget: change_cursor(w, "hand2"))
 			widget.bind("<Leave>", lambda event, w=widget: change_cursor(w, ""))
+			
+		update_combobox(comboSelectScheme, last_directories)
 		
 	fasta_dic = {}
 	input_dic = {} # input_dic[strain] = {file_type, strain, dir, seq1, seq2}
 	input_list = []
 	dir_path = {'datadir':'', 'outdir':'', 'ref_file':''}
 	dir_list = []
+	open_dir = user_home('datadir') # 2025/02/25
 	scheme = ''
 
 	def close_Window(self):
@@ -131,8 +150,8 @@ class createcgMLSTWindow(tk.Frame):
 
 	def select_fasta(self):
 		fTyp = [('fasta', '*.fasta'), ('fasta', '*.fa'), ('fasta', '*.fna')]
-		fasta_files = tk.filedialog.askopenfilenames(
-					parent = self.master,filetypes=fTyp, initialdir=user_home('datadir'))
+		fasta_files = filedialog.askopenfilenames(
+					parent = self.master,filetypes=fTyp, initialdir=self.open_dir) # 2025/02/25
 		print(fasta_files)
 		if len(fasta_files) > 0:
 			for fasta in fasta_files:
@@ -143,6 +162,7 @@ class createcgMLSTWindow(tk.Frame):
 				filename = os.path.basename(fasta)
 				self.fasta_dic[strain] = [dir_name, filename, '']
 				self.dir_list.append(dir_name)
+				self.open_dir = dir_name # 2025/02/25
 			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
 			label_arrow.place(x=170, y=130)
 			buttonReview = tk.Button(self.master, text='Review input\nfiles', command=self.review_files, 
@@ -154,9 +174,9 @@ class createcgMLSTWindow(tk.Frame):
 			return
 
 	def select_spades(self):
-		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home('assemblydir'))
+		file_path = filedialog.askdirectory(parent = self.master, initialdir = user_home('assemblydir'))
 		print(file_path)
-		spade_ret = spades_contig(file_path)
+		spades_ret = spades_contig(file_path)
 		if spades_ret == 'NotFound':
 			pass
 		else:
@@ -178,7 +198,7 @@ class createcgMLSTWindow(tk.Frame):
 			for record_id in range(i):
 				try:
 					values = tree.item(record_id, 'values')
-					print(values)
+					#print(values)
 					self.input_dic[values[1]] = values
 				except:
 					pass
@@ -246,7 +266,7 @@ class createcgMLSTWindow(tk.Frame):
 				uid = '0'
 			else:
 				uid = str(os.getuid())
-			client.containers.run(cgmlst_container, cgmlst_cmd, remove=True, 
+			client.containers.run(cgmlst_container, cgmlst_cmd, remove=True, platform = 'linux/x86_64', 
 						volumes=[cgmlst_dir + ':/chewieSnake/analysis', mount_path + ':/mnt'],
 						environment=['LOCAL_USER_ID=' + uid]
 						)

@@ -7,6 +7,8 @@
 #                                                                               #
 #################################################################################
 
+# 2025/03/06 Support organism, ident_min and plus options
+# 2025/02/25 Change input fasta select window to take over the directory opened previously.
 # 2024/02/02 Default directory support
 # 2023/06/09 Fix results order to that of input
 # 2023/05/26 mouse cursor change for link
@@ -26,7 +28,7 @@ import copy
 import psutil
 from gigadoc_tags import docker_tag
 from gigadoc_functions import user_home, jump_to_link
-from run_amrfinder import amr_summary, amr_resultsfile, amr2excel, amr2txt
+from run_amrfinder import amr_summary, amr2excel, amr2txt
 
 
 class createAMRfinderWindow(tk.Frame):
@@ -38,42 +40,107 @@ class createAMRfinderWindow(tk.Frame):
 		self.create_widgets()
 
 	def create_widgets(self):
+		def select_combo(event):
+			self.organism = comboSelectOrganism.get()
+			print(self.organism)
+		def select_identity(event):
+			self.identity = comboSelectIdentity.get()
+			print(self.identity)
+		def get_state():
+			if plus_check.get():
+				self.plus_gene = True
+				print('Set plus option')
+			else:
+				self.plus_gene = False
+				print('No plus option')
+
 		mem = psutil.virtual_memory()
 		if mem.total >= 8000000000: # AMRfinder requires 8 Gbytes or more memory
 			buttonSelectFasta = tk.Button(self.master, text='Select fasta\nfiles', 
 				command=self.select_fasta, width=14, height=3)
 			buttonSelectDir = tk.Button(self.master, text='SPAdes Assembly\noutput directory', 
 				command=self.select_spades, width=14, height=3)
+			value = tk.StringVar()
+			ident_value = tk.DoubleVar
+
 		else:
 			buttonSelectFasta = tk.Button(self.master, text='Select fasta\nfiles', 
 				command=self.select_fasta, width=14, height=3, state='disable')
 			buttonSelectDir = tk.Button(self.master, text='SPAdes Assembly\noutput directory', 
 				command=self.select_spades, width=14, height=3, state='disable')
+			comboSelectOrganism = ttk.Combobox(self.master, state="disable", width = 45)
+
+		# 2025/02/26 Add combo box for setting organism
+		comboSelectOrganism = ttk.Combobox(self.master,
+							state="readonly",
+							values = self.organisms(),
+							textvariable = value,
+							width = 30
+							)
+		comboSelectOrganism.bind('<<ComboboxSelected>>', select_combo)
+
+		
+		# 2025/03/05 Add combo box to specify Minimum proportion of identical amino acids in alignment for hit
+		comboSelectIdentity = ttk.Combobox(self.master,
+							state="readonly",
+							values = (-1, 0.9, 0.8, 0.7, 0.6),
+							textvariable = ident_value,
+							width = 4
+							)
+		comboSelectIdentity.current(0)
+		comboSelectIdentity.bind('<<ComboboxSelected>>', select_identity)
+		
+		
+		# 2025/02/26 Add check box for Plus option
+		plus_check = tk.BooleanVar()
+		plus_check.set(False)
+		plusButton = tk.Checkbutton(self.master, variable=plus_check, command=get_state)
+
 		buttonSelectFasta.place(x=20, y=20)
 		buttonSelectDir.place(x=20, y=90)
 
 		buttonOutDir = tk.Button(self.master, text='Select Output\ndirectory', command=self.select_outdir, 
 			width=14, height=3, state='normal')
-		buttonOutDir.place(x=210, y=50)
+		buttonOutDir.place(x=210, y=40)
 
 		buttonDummyReview = tk.Button(self.master, text='Review input\nfiles', 
 			command=self.review_files, width=14, height=3, state='disable')
-		buttonDummyReview.place(x=400, y=50)
+		buttonDummyReview.place(x=400, y=40)
 
 		buttonUpdate = tk.Button(self.master, text = "Update Database", 
 			command=self.updatedb, width=14, height=3)
-		buttonUpdate.place(x=600, y=50)
+		buttonUpdate.place(x=600, y=70)
 
 		buttonCancel = tk.Button(self.master, text = "Close", 
 			command=self.close_Window, width=14, height=3)
-		buttonCancel.place(x=600, y=160)
+		buttonCancel.place(x=600, y=190)
+
+		comboSelectOrganism.place(x=280, y=130) # 2025/02/26
+		label_Organism = tk.Label(self.master, text='Organism:', font=font.Font(size=12), anchor=tk.W)
+		label_Organism.place(x=190, y=130)
+
+		plusButton.place(x=125, y=165) # 2025/02/26
+		label_Plus = tk.Label(self.master, text='Plus option:', font=font.Font(size=12), anchor=tk.W)
+		label_Plus.place(x=30, y=165)
+		label_PlusDescription = tk.Label(self.master, 
+			text='Plus option provide results from "Plus" genes such as\nvirulence factors, stress-response genes, etc.', 
+			font=font.Font(size=9), anchor=tk.W, justify='left')
+		label_PlusDescription.place(x=165, y=165)
 		
+		comboSelectIdentity.place(x=110, y=208) # 2025/03/05
+		label_Identity = tk.Label(self.master, text='Identity:', font=font.Font(size=12), anchor=tk.W)
+		label_Identity.place(x=30, y=205)
+		label_IdentityDescription = tk.Label(self.master, 
+				text='Minimum proportion of identical amino acids in alignment for hit.\n-1 means use a curated threshold if it exists and 0.9 otherwise', 
+				font=font.Font(size=9), anchor=tk.W)
+		label_IdentityDescription.place(x=165, y=205)
+
 		def change_cursor(widget, cursor):
 			widget.config(cursor=cursor)
 
 		label_amrfinder = tk.Label(self.master, text= 'Link to AMRFinderPlus: https://github.com/ncbi/amr/wiki', 
 			font=font.Font(size=12), fg='#0000ff')
-		label_amrfinder.place(x=20, y=250)
+		label_amrfinder.place(x=20, y=260)
 		label_amrfinder.bind('<Button-1>', lambda e:jump_to_link('https://github.com/ncbi/amr/wiki'))
 
 		widgets = [label_amrfinder]
@@ -87,13 +154,17 @@ class createAMRfinderWindow(tk.Frame):
 	dir_path = {'datadir':'', 'outdir':'', 'ref_file':''}
 	dir_path['outdir'] = user_home('amrfinderdir')
 	dir_list = []
+	open_dir = user_home('datadir') # 2025/02/25
+	organism = 'Not_specified' # 2025/02/26
+	plus_gene = False # 2025/02/26
+	identity = 'NotIdentified' # 2025/03/05
 
 	def close_Window(self):
 		self.master.destroy()
 
 	def select_fasta(self):
 		fTyp = [('fasta', '*.fasta'), ('fasta', '*.fa'), ('fasta', '*.fna')]
-		fasta_files = tk.filedialog.askopenfilenames(parent = self.master,filetypes=fTyp, initialdir=user_home('datadir'))
+		fasta_files = tk.filedialog.askopenfilenames(parent = self.master,filetypes=fTyp, initialdir=self.open_dir)  # 2025/02/25
 		print(fasta_files)
 		if len(fasta_files) > 0:
 			for fasta in fasta_files:
@@ -101,13 +172,14 @@ class createAMRfinderWindow(tk.Frame):
 				dir_name = os.path.dirname(fasta)
 				filename = os.path.basename(fasta)
 				self.fasta_dic[strain] = [dir_name, filename, '']
+				self.open_dir = dir_name # 2025/02/25
 			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
 			label_arrow.place(x=170, y=60)
 			label_arrow = tk.Label(self.master, text='→', font=font.Font(size=20))
 			label_arrow.place(x=360, y=60)
 			buttonReview = tk.Button(self.master, text='Review input\nfiles', command=self.review_files, 
 				width=14, height=3, state='normal')
-			buttonReview.place(x=400, y=50)
+			buttonReview.place(x=400, y=40)
 			print(self.fasta_dic)
 		else:
 			print('No fasta is selected')
@@ -136,7 +208,7 @@ class createAMRfinderWindow(tk.Frame):
 			label_arrow.place(x=360, y=60)
 			buttonReview = tk.Button(self.master, text='Review input\nfiles', command=self.review_files, 
 				width=14, height=3, state='normal')
-			buttonReview.place(x=400, y=50)
+			buttonReview.place(x=400, y=40)
 			print(self.fasta_dic)
 		else:
 			print('No fasta is selected')
@@ -144,8 +216,8 @@ class createAMRfinderWindow(tk.Frame):
 
 	def select_outdir(self):
 		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home('amrfinderdir'))
-		if file_path == '':
-			print('No directory is selected')
+		if len(file_path) == 0:
+			print(f"{self.dir_path['outdir']} is selected")
 			return
 		else:	
 			print(file_path)
@@ -156,7 +228,7 @@ class createAMRfinderWindow(tk.Frame):
 		label_arrow.place(x=360, y=60)
 		buttonReview = tk.Button(self.master, text='Review input\nfiles', command=self.review_files, 
 			width=14, height=3, state='normal')
-		buttonReview.place(x=400, y=50)
+		buttonReview.place(x=400, y=40)
 
 	def updatedb(self):
 		print('update AMRfinder database')
@@ -169,7 +241,8 @@ class createAMRfinderWindow(tk.Frame):
 		amrfinder_container = 'quay.io/biocontainers/ncbi-amrfinderplus:' + tag
 		dbdir = idir + '/' + tag
 		client = docker.from_env()
-		client.containers.run(amrfinder_container, 'amrfinder -u', remove=True, volumes=[dbdir + ':/usr/local/share'])
+		client.containers.run(amrfinder_container, 'amrfinder -u', remove=True, platform = 'linux/x86_64', 
+							volumes=[dbdir + ':/usr/local/share'])
 
 	def review_files(self):
 		def adapt_changes():
@@ -205,6 +278,17 @@ class createAMRfinderWindow(tk.Frame):
 			results_text_dic = {}
 			strain_list = [] # 2023/6/9
 
+			if self.organism != 'Not_specified': # 2025/02/26
+				org_specific = f' -O {self.organism} '
+			else:
+				org_specific = ''
+			if self.plus_gene:
+				plus_option = ' --plus '
+			else:
+				plus_option = ''
+			if self.identity == 'NotIdentified':
+				self.identity = -1
+
 			tag = docker_tag('AMRfinder')
 			dbdir = user_home('amrfinderdbdir') + '/' + tag
 			amrfinder_container = 'quay.io/biocontainers/ncbi-amrfinderplus:' + tag
@@ -217,27 +301,41 @@ class createAMRfinderWindow(tk.Frame):
 			
 			for key in self.input_dic:
 				strain_list.append(key)
-				amrfinder_cmd = 'amrfinder -n ' + self.input_dic[key][3] + ' -i 0.7 --threads 4'
+				
+				amrfinder_cmd = f'amrfinder -n {self.input_dic[key][3]} -i {self.identity} --threads 4{org_specific}{plus_option}' # 2025/02/26
 				print(amrfinder_cmd)
 				print(self.input_dic[key])
-				amr_results = client.containers.run(amrfinder_container, amrfinder_cmd, remove=True, 
+				amr_results = client.containers.run(amrfinder_container, amrfinder_cmd, remove=True, platform = 'linux/x86_64', 
 					volumes=[self.input_dic[key][2] + ':/mnt', dbdir + ':/usr/local/share'], working_dir='/mnt')
 				amr_list = amr_results.decode('utf8').rstrip().split("\n")
 				results_list = []
 				for amr_line in amr_list:
-					amr_line_list = amr_line.split('\t')
-					if amr_line_list[0] != 'Protein identifier':
-						results_list.append(amr_summary(amr_line))
+					if 'Alignment' in amr_line: # 2025/02/26 modify key word
+						pass
+					else:
+						results_list.append(amr_summary(amr_line, self.organism))
 				print(results_list)
 				results_dic[key]= copy.copy(results_list)
 				results_text_dic[key] = amr_results.decode('utf8')
 				results_list.clear()
 			print(results_dic)
+
+			amr_version = client.containers.run(amrfinder_container, 'amrfinder -V', remove=True, platform = 'linux/x86_64', 
+							volumes=[f"{dbdir}:/usr/local/share"], working_dir='/mnt')
+			ver_list = amr_version.decode('utf8').rstrip().split("\n")
+			version_dic = {}
+			for ver_info in ver_list:
+				if 'Software version' in ver_info:
+					version_dic['Software version'] = ver_info.split(' ')[2]
+				elif 'Database version' in ver_info:
+					version_dic['Database version'] = ver_info.split(' ')[2]
+			print(version_dic)
+
 			amr2txt('', results_text_dic, strain_list, out_name) # 2023/6/9 add "strain_list"
-			amr2excel(results_dic, out_name, strain_list) # 2023/6/9 add "strain_list"
+			amr2excel(results_dic, out_name, strain_list, version_dic, self.identity, True) # 2023/6/9 add "strain_list"
 			
 			ReviewWindow.destroy()
-			
+		
 		
 		if len(self.fasta_dic) >= 1:
 			for key in self.fasta_dic:
@@ -278,6 +376,41 @@ class createAMRfinderWindow(tk.Frame):
 		label_msg1 = tk.Label(ReviewWindow, text='Double-click to delete record. To add data, return to the previous screen.', font=font.Font(size=16))
 		label_msg1.place(x=50, y=280)
 		
+	def organisms(self): # 2025/02/26 organisms list
+		organism_list = (
+						'Not_specified',
+						'Escherichia', 
+						'Klebsiella_pneumoniae', 
+						'Pseudomonas_aeruginosa', 
+						'Staphylococcus_aureus', 
+						'Acinetobacter_baumannii', 
+						'Burkholderia_cepacia', 
+						'Burkholderia_mallei', 
+						'Burkholderia_pseudomallei', 
+						'Campylobacter', 
+						'Citrobacter_freundii', 
+						'Clostridioides_difficile', 
+						'Corynebacterium_diphtheriae', 
+						'Enterobacter_asburiae', 
+						'Enterobacter_cloacae', 
+						'Enterococcus_faecalis', 
+						'Enterococcus_faecium', 
+						'Haemophilus_influenzae', 
+						'Klebsiella_oxytoca', 
+						'Neisseria_gonorrhoeae', 
+						'Neisseria_meningitidis', 
+						'Salmonella', 
+						'Serratia_marcescens', 
+						'Staphylococcus_pseudintermedius', 
+						'Streptococcus_agalactiae', 
+						'Streptococcus_pneumoniae', 
+						'Streptococcus_pyogenes', 
+						'Vibrio_cholerae', 
+						'Vibrio_parahaemolyticus', 
+						'Vibrio_vulnificus'
+						)
+		return(organism_list)
+	
 	
 def main():
 	root = tk.Tk()

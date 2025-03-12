@@ -7,6 +7,7 @@
 #                                                                               #
 #################################################################################
 
+# 2024/10/23 Fix SPAdes directory permission error on Linux
 # 2024/02/02 Calculating coverage and Default directory support
 # 2023/12/18 Default dir setting support and Coverage output
 # 2023/05/26 mouse cursor change for link
@@ -119,8 +120,8 @@ class createSpadesWindow(tk.Frame):
 		
 	def select_outdir(self):
 		file_path = tk.filedialog.askdirectory(parent = self.master, initialdir = user_home('assemblydir'))
-		if file_path == '':
-			print('No directory is selected')
+		if len(file_path) == 0:
+			print(f"{self.dir_path['outdir']} is selected")
 			return
 		else:	
 			print(file_path)
@@ -182,7 +183,7 @@ class createSpadesWindow(tk.Frame):
 					label_run = tk.Label(self.master, text= strain + ': fastq trimming by fastp', font=font.Font(size=12))
 					label_run.place(x=20, y=410)
 					volume_list = [fastp_dir + ':/home', data_dir + ':/mnt']
-					client.containers.run(fastp_container, fastp_cmd, remove=True, 
+					client.containers.run(fastp_container, fastp_cmd, remove=True, platform = 'linux/x86_64', 
 											volumes=volume_list, working_dir='/home')
 				with open(fastp_dir + '/' + strain + '.json', 'r')as f:
 					fastp_dic = json.load(f)
@@ -198,7 +199,12 @@ class createSpadesWindow(tk.Frame):
 					volume_list = [fastp_dir + ':/mnt', out_dir + '/' + strain + ':/home']
 					spades_cmd = 'spades.py -o /home/SPAdes --pe1-1 ' + strain + '_R1_fastp.fastq.gz \
 					--pe1-2 ' + strain + '_R2_fastp.fastq.gz'
-					client.containers.run(spades_container, spades_cmd, remove=True, volumes=volume_list, working_dir='/mnt')
+					client.containers.run(spades_container, spades_cmd, remove=True, platform = 'linux/x86_64', 
+										volumes=volume_list, working_dir='/mnt')
+					chmod_cmd = 'chmod a+w /home/SPAdes'
+					client.containers.run(spades_container, chmod_cmd, remove=True, platform = 'linux/x86_64', 
+										volumes=volume_list, working_dir='/mnt')
+					##### Change "SPAdes directory" permission to writable 24/10/23 #####
 				
 					### Discard waste contigs and check genone length ###
 					contig_file = out_dir + '/' + strain + '/SPAdes/' + 'contigs.fasta'
